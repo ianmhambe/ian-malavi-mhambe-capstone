@@ -3,7 +3,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: caresync-frontend
-  namespace: caresync
+  namespace: ian-malavi-mhambe
   labels:
     app.kubernetes.io/name: caresync-frontend
     app.kubernetes.io/component: frontend
@@ -66,7 +66,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: caresync-frontend
-  namespace: caresync
+  namespace: ian-malavi-mhambe
   labels:
     app.kubernetes.io/name: caresync-frontend
 spec:
