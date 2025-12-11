@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react';
 import { 
   Bell, 
   Menu, 
-  X, 
   User,
   LogOut,
   ChevronDown 

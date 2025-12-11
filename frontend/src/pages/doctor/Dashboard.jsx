@@ -78,7 +78,7 @@ const DoctorDashboard = () => {
         <h1 className="text-2xl font-bold text-gray-900">
           Welcome, Dr. {user?.lastName}! 👋
         </h1>
-        <p className="text-gray-600">Here's your appointment overview for today</p>
+        <p className="text-gray-600">Here&apos;s your appointment overview for today</p>
       </div>
 
       {/* Stats */}

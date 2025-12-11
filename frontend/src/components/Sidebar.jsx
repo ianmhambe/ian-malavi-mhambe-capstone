@@ -3,7 +3,6 @@ import {
   LayoutDashboard, 
   Users, 
   Calendar, 
-  UserCog, 
   Clock,
   BarChart3,
   Stethoscope,

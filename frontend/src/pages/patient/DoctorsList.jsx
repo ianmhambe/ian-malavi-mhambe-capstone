@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Star, DollarSign, Clock } from 'lucide-react';
+import { Search, DollarSign, Clock } from 'lucide-react';
 import { doctorService } from '../../services/doctorService';
 import Input from '../../components/Input';
 import Select from '../../components/Select';

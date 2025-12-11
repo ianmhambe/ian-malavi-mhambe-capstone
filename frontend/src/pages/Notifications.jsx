@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { format, parseISO } from 'date-fns';
-import { Bell, BellOff, Trash2, CheckCheck, Calendar, Clock, User } from 'lucide-react';
+import { Bell, BellOff, Trash2, CheckCheck, Calendar, Clock } from 'lucide-react';
 import { notificationService } from '../services/notificationService';
 import { useNotificationStore } from '../store/notificationStore';
 import Button from '../components/Button';

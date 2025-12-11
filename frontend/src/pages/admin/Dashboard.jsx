@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Stethoscope, Calendar, TrendingUp } from 'lucide-react';
+import { Users, Stethoscope, TrendingUp } from 'lucide-react';
 import { adminService } from '../../services/adminService';
 import StatsCard from '../../components/StatsCard';
 import Spinner from '../../components/Spinner';

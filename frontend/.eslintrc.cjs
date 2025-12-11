@@ -32,5 +32,7 @@ module.exports = {
     ],
     'react/prop-types': 'off',
     'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+    'react-hooks/exhaustive-deps': 'warn',
+    'react/no-unescaped-entities': 'off',
   },
 };

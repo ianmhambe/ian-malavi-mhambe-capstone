@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-import { format, addDays } from 'date-fns';
-import { ArrowLeft, Clock, DollarSign, User } from 'lucide-react';
+import { format } from 'date-fns';
+import { ArrowLeft, Clock, DollarSign } from 'lucide-react';
 import { doctorService } from '../../services/doctorService';
 import { appointmentService } from '../../services/appointmentService';
 import Calendar from '../../components/Calendar';

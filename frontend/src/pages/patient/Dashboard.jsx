@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Calendar, Users, Clock, Stethoscope } from 'lucide-react';
 import { appointmentService } from '../../services/appointmentService';
-import { doctorService } from '../../services/doctorService';
 import { useAuthStore } from '../../store/authStore';
 import StatsCard from '../../components/StatsCard';
 import AppointmentCard from '../../components/AppointmentCard';
@@ -70,7 +69,7 @@ const PatientDashboard = () => {
         <h1 className="text-2xl font-bold text-gray-900">
           Welcome back, {user?.firstName}! 👋
         </h1>
-        <p className="text-gray-600">Here's an overview of your health appointments</p>
+        <p className="text-gray-600">Here&apos;s an overview of your health appointments</p>
       </div>
 
       {/* Stats */}

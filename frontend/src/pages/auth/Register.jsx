@@ -72,7 +72,7 @@ const Register = () => {
 
     setLoading(true);
     try {
-      const { confirmPassword, ...submitData } = formData;
+      const { confirmPassword: _confirmPassword, ...submitData } = formData;
       const response = await authService.register(submitData);
       const { user, accessToken, refreshToken } = response.data;
       login(user, accessToken, refreshToken);
