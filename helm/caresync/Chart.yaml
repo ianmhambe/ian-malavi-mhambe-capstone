@@ -1,0 +1,24 @@
+apiVersion: v2
+name: caresync
+description: A Helm chart for CareSync Healthcare Appointment Scheduling Application
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+maintainers:
+  - name: Ian Malavi Mhambe
+    email: ian.mhambe@example.com
+keywords:
+  - healthcare
+  - appointment
+  - scheduling
+  - nodejs
+  - react
+  - postgresql
+home: https://github.com/ian-malavi-mhambe/caresync
+sources:
+  - https://github.com/ian-malavi-mhambe/caresync
+dependencies:
+  - name: postgresql
+    version: "12.x.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled

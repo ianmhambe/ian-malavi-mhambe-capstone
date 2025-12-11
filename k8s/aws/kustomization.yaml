@@ -1,0 +1,20 @@
+# AWS EKS Kustomization
+# Usage: kubectl apply -k k8s/aws/
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: caresync
+
+resources:
+  - ../namespace.yaml
+  - ../network-policy.yaml
+  - ../hpa.yaml
+  - ../pod-disruption-budget.yaml
+  - configmap.yaml
+  - secrets.yaml
+  - backend-deployment.yaml
+  - frontend-deployment.yaml
+  - ingress.yaml
+
+# Images will be set during deployment via CI/CD
+# Example: kubectl apply -k k8s/aws/ --set image=<ecr-url>

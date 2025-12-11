@@ -1,0 +1,29 @@
+{{- if .Values.podDisruptionBudget.backend.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "caresync.fullname" . }}-backend-pdb
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "caresync.backend.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.backend.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "caresync.backend.selectorLabels" . | nindent 6 }}
+{{- end }}
+---
+{{- if .Values.podDisruptionBudget.frontend.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "caresync.fullname" . }}-frontend-pdb
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "caresync.frontend.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.frontend.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "caresync.frontend.selectorLabels" . | nindent 6 }}
+{{- end }}

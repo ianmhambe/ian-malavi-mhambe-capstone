@@ -1,0 +1,103 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: caresync-backend
+  namespace: ian-malavi-mhambe
+  labels:
+    app.kubernetes.io/name: caresync-backend
+    app.kubernetes.io/component: backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: caresync-backend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: caresync-backend
+        app.kubernetes.io/component: backend
+    spec:
+      serviceAccountName: caresync-backend
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: backend
+          image: REPLACE_WITH_ECR_URI/ian-malavi-mhambe/backend:v1
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 5000
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: caresync-config
+            - secretRef:
+                name: caresync-secrets
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/name
+                      operator: In
+                      values:
+                        - caresync-backend
+                topologyKey: kubernetes.io/hostname
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: ian-malavi-mhambe
+  labels:
+    app.kubernetes.io/name: caresync-backend
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5000
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: caresync-backend
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: caresync-backend
+  namespace: ian-malavi-mhambe
+  labels:
+    app.kubernetes.io/name: caresync-backend
