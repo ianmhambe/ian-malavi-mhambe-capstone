@@ -3,7 +3,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: caresync-ingress
-  namespace: caresync
+  namespace: ian-malavi-mhambe
   labels:
     app.kubernetes.io/name: caresync
   annotations:

@@ -2,7 +2,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: caresync-backend-network-policy
-  namespace: caresync
+  namespace: ian-malavi-mhambe
 spec:
   podSelector:
     matchLabels:
@@ -43,7 +43,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: caresync-postgres-network-policy
-  namespace: caresync
+  namespace: ian-malavi-mhambe
 spec:
   podSelector:
     matchLabels:
@@ -63,7 +63,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: caresync-frontend-network-policy
-  namespace: caresync
+  namespace: ian-malavi-mhambe
 spec:
   podSelector:
     matchLabels:
