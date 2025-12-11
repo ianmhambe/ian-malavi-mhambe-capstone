@@ -1,0 +1,248 @@
+# Default values for CareSync Helm chart
+# This is a YAML-formatted file.
+
+# Global settings
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+# Namespace
+namespace: caresync
+
+# Image settings
+image:
+  registry: ""  # Set to your ECR registry
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+# Backend configuration
+backend:
+  enabled: true
+  name: backend
+  replicaCount: 3
+  
+  image:
+    repository: caresync-backend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: NodePort
+    port: 5000
+    targetPort: 5000
+    nodePort: 30500
+  
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 50
+    targetMemoryUtilizationPercentage: 80
+  
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  
+  podAnnotations: {}
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000
+  
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false
+    runAsNonRoot: true
+    runAsUser: 1000
+    capabilities:
+      drop:
+        - ALL
+  
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 5000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 5000
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+  
+  env:
+    NODE_ENV: production
+    PORT: "5000"
+    JWT_EXPIRES_IN: "15m"
+    JWT_REFRESH_EXPIRES_IN: "7d"
+
+# Frontend configuration
+frontend:
+  enabled: true
+  name: frontend
+  replicaCount: 2
+  
+  image:
+    repository: caresync-frontend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: NodePort
+    port: 80
+    targetPort: 80
+    nodePort: 30080
+  
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 50
+  
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  
+  podAnnotations: {}
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 101
+    fsGroup: 101
+  
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 101
+    capabilities:
+      drop:
+        - ALL
+
+  livenessProbe:
+    httpGet:
+      path: /
+      port: 80
+    initialDelaySeconds: 10
+    periodSeconds: 10
+  
+  readinessProbe:
+    httpGet:
+      path: /
+      port: 80
+    initialDelaySeconds: 5
+    periodSeconds: 5
+
+# PostgreSQL configuration (using Bitnami chart)
+postgresql:
+  enabled: true
+  auth:
+    username: caresync
+    password: ""  # Set via --set or secrets
+    database: caresync_db
+    postgresPassword: ""  # Set via --set or secrets
+  
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: ""
+    
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+# External PostgreSQL (when postgresql.enabled is false)
+externalDatabase:
+  host: ""
+  port: 5432
+  user: caresync
+  password: ""
+  database: caresync_db
+  existingSecret: ""
+  existingSecretPasswordKey: ""
+
+# Ingress configuration (disabled for localhost)
+ingress:
+  enabled: false
+  className: nginx
+  annotations:
+    kubernetes.io/ingress.class: nginx
+  hosts:
+    - host: localhost
+      paths:
+        - path: /api
+          pathType: Prefix
+          service: backend
+        - path: /
+          pathType: Prefix
+          service: frontend
+  tls: []
+
+# Service Account
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  backend:
+    enabled: true
+    minAvailable: 2
+  frontend:
+    enabled: true
+    minAvailable: 1
+
+# Network Policies
+networkPolicy:
+  enabled: true
+
+# Secrets
+secrets:
+  jwtSecret: ""  # Set via --set or external secrets
+  jwtRefreshSecret: ""  # Set via --set or external secrets
+  databaseUrl: ""  # Set via --set or external secrets
+
+# ConfigMap
+configMap:
+  frontendUrl: "http://localhost:30080"
+
+# AWS specific settings (optional for localhost)
+aws:
+  region: us-east-1
+  certificateArn: ""  # Not needed for localhost
+
+# Monitoring
+monitoring:
+  enabled: false
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s

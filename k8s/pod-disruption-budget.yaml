@@ -1,0 +1,38 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: caresync-backend-pdb
+  namespace: ian-malavi-mhambe
+  labels:
+    app.kubernetes.io/name: caresync-backend
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: caresync-backend
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: caresync-frontend-pdb
+  namespace: ian-malavi-mhambe
+  labels:
+    app.kubernetes.io/name: caresync-frontend
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: caresync-frontend
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: caresync-postgres-pdb
+  namespace: ian-malavi-mhambe
+  labels:
+    app.kubernetes.io/name: caresync-postgres
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: caresync-postgres

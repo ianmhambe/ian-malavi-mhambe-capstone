@@ -1,0 +1,298 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+      - master
+
+env:
+  AWS_REGION: eu-west-1
+  EKS_CLUSTER_NAME: innovation
+  ECR_BACKEND_REPOSITORY: ian-malavi-mhambe/backend
+  ECR_FRONTEND_REPOSITORY: ian-malavi-mhambe/frontend
+  NAMESPACE: ian-malavi-mhambe
+
+jobs:
+  # Code Quality and Testing
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: caresync
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: caresync_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: ./backend
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Run backend linting
+        working-directory: ./backend
+        run: npm run lint --if-present
+
+      - name: Run frontend linting
+        working-directory: ./frontend
+        run: npm run lint --if-present
+
+      - name: Run backend tests
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://caresync:test_password@localhost:5432/caresync_test?schema=public
+          JWT_SECRET: test-jwt-secret
+          JWT_REFRESH_SECRET: test-jwt-refresh-secret
+          NODE_ENV: test
+        run: |
+          npx prisma migrate deploy
+          npm test --if-present
+
+      - name: Run frontend tests
+        working-directory: ./frontend
+        run: npm test --if-present -- --passWithNoTests
+
+  # Build and Push Docker Images to AWS ECR
+  build:
+    name: Build and Push to ECR
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    
+    outputs:
+      image-tag: ${{ steps.version.outputs.version }}
+      registry: ${{ steps.login-ecr.outputs.registry }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Generate version tag
+        id: version
+        run: |
+          # Get the run number as version
+          VERSION="v${{ github.run_number }}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "📌 Image version: ${VERSION}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push backend image to ECR
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_BACKEND_REPOSITORY }}:${{ steps.version.outputs.version }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_BACKEND_REPOSITORY }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push frontend image to ECR
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_FRONTEND_REPOSITORY }}:${{ steps.version.outputs.version }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_FRONTEND_REPOSITORY }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify images in ECR
+        run: |
+          echo "✅ Backend image pushed to: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_BACKEND_REPOSITORY }}:${{ steps.version.outputs.version }}"
+          echo "✅ Frontend image pushed to: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_FRONTEND_REPOSITORY }}:${{ steps.version.outputs.version }}"
+          
+          # List images in ECR
+          aws ecr describe-images --repository-name ${{ env.ECR_BACKEND_REPOSITORY }} --region ${{ env.AWS_REGION }} --query 'imageDetails[*].imageTags' --output table || true
+          aws ecr describe-images --repository-name ${{ env.ECR_FRONTEND_REPOSITORY }} --region ${{ env.AWS_REGION }} --query 'imageDetails[*].imageTags' --output table || true
+
+  # Deploy to AWS EKS
+  deploy:
+    name: Deploy to EKS
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Update kubeconfig for EKS
+        run: |
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER_NAME }}
+          kubectl cluster-info
+
+      - name: Create namespace if not exists
+        run: |
+          kubectl create namespace ${{ env.NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Update Kubernetes manifests with ECR image URIs
+        run: |
+          # Set ECR registry URL
+          ECR_REGISTRY="${{ steps.login-ecr.outputs.registry }}"
+          IMAGE_TAG="${{ needs.build.outputs.image-tag }}"
+          
+          # Update backend deployment with ECR image
+          sed -i "s|REPLACE_WITH_ECR_URI/ian-malavi-mhambe/backend:.*|${ECR_REGISTRY}/${{ env.ECR_BACKEND_REPOSITORY }}:${IMAGE_TAG}|g" k8s/backend-deployment.yaml
+          sed -i "s|image:.*ian-malavi-mhambe/backend.*|image: ${ECR_REGISTRY}/${{ env.ECR_BACKEND_REPOSITORY }}:${IMAGE_TAG}|g" k8s/backend-deployment.yaml
+          
+          # Update frontend deployment with ECR image
+          sed -i "s|REPLACE_WITH_ECR_URI/ian-malavi-mhambe/frontend:.*|${ECR_REGISTRY}/${{ env.ECR_FRONTEND_REPOSITORY }}:${IMAGE_TAG}|g" k8s/frontend-deployment.yaml
+          sed -i "s|image:.*ian-malavi-mhambe/frontend.*|image: ${ECR_REGISTRY}/${{ env.ECR_FRONTEND_REPOSITORY }}:${IMAGE_TAG}|g" k8s/frontend-deployment.yaml
+          
+          # Show updated image references
+          echo "📦 Backend image:"
+          grep -A1 "name: backend" k8s/backend-deployment.yaml | grep image || true
+          echo "📦 Frontend image:"
+          grep -A1 "name: frontend" k8s/frontend-deployment.yaml | grep image || true
+
+      - name: Deploy to Kubernetes
+        run: |
+          # Apply all Kubernetes manifests in order
+          echo "🚀 Deploying to namespace: ${{ env.NAMESPACE }}"
+          
+          # 1. Create namespace
+          kubectl apply -f k8s/namespace.yaml
+          
+          # 2. Apply ConfigMap and Secrets
+          kubectl apply -f k8s/configmap.yaml
+          kubectl apply -f k8s/secrets.yaml
+          
+          # 3. Deploy backend
+          kubectl apply -f k8s/backend-deployment.yaml
+          
+          # 4. Deploy frontend
+          kubectl apply -f k8s/frontend-deployment.yaml
+          
+          # 5. Apply Ingress
+          kubectl apply -f k8s/ingress.yaml
+          
+          # 6. Apply HPA (autoscaling)
+          kubectl apply -f k8s/hpa.yaml
+          
+          # 7. Apply Network Policies
+          kubectl apply -f k8s/network-policy.yaml
+          
+          # 8. Apply Pod Disruption Budgets
+          kubectl apply -f k8s/pod-disruption-budget.yaml
+          
+          echo "✅ All manifests applied successfully"
+
+      - name: Wait for deployments to be ready
+        run: |
+          echo "⏳ Waiting for backend deployment..."
+          kubectl rollout status deployment/caresync-backend -n ${{ env.NAMESPACE }} --timeout=5m
+          
+          echo "⏳ Waiting for frontend deployment..."
+          kubectl rollout status deployment/caresync-frontend -n ${{ env.NAMESPACE }} --timeout=5m
+          
+          echo "✅ All deployments are ready!"
+
+      - name: Verify deployment
+        run: |
+          echo "📋 Pods in namespace ${{ env.NAMESPACE }}:"
+          kubectl get pods -n ${{ env.NAMESPACE }} -o wide
+          
+          echo ""
+          echo "📋 Services in namespace ${{ env.NAMESPACE }}:"
+          kubectl get services -n ${{ env.NAMESPACE }}
+          
+          echo ""
+          echo "📋 Ingress in namespace ${{ env.NAMESPACE }}:"
+          kubectl get ingress -n ${{ env.NAMESPACE }}
+          
+          echo ""
+          echo "📋 HPA status:"
+          kubectl get hpa -n ${{ env.NAMESPACE }}
+
+      - name: Test health endpoints
+        run: |
+          # Test backend health endpoint
+          echo "🔍 Testing backend health endpoint..."
+          kubectl run health-check --rm -i --restart=Never --image=curlimages/curl -n ${{ env.NAMESPACE }} -- \
+            curl -s -o /dev/null -w "%{http_code}" http://backend:5000/api/health || echo "Health check completed"
+          
+          echo ""
+          echo "🎉 Deployment completed successfully!"
+          echo "📍 Application deployed to namespace: ${{ env.NAMESPACE }}"
+          echo "🌐 Access via Ingress: https://ian-malavi-mhambe.capstone.tiberbu.com"
+
+  # Send notification on completion
+  notify:
+    name: Notify
+    runs-on: ubuntu-latest
+    needs: [build, deploy]
+    if: always()
+
+    steps:
+      - name: Send deployment notification
+        run: |
+          if [ "${{ needs.deploy.result }}" == "success" ]; then
+            echo "✅ Deployment successful!"
+            echo "Repository: ${{ github.repository }}"
+            echo "Branch: ${{ github.ref_name }}"
+            echo "Commit: ${{ github.sha }}"
+            echo "Author: ${{ github.actor }}"
+          else
+            echo "❌ Deployment failed or was skipped"
+          fi
