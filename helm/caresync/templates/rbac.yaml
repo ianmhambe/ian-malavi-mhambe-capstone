@@ -1,0 +1,65 @@
+{{- if .Values.rbac.create -}}
+# Backend Role
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "caresync.fullname" . }}-backend-role
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "caresync.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rbac
+rules:
+{{- with .Values.rbac.rules.backend }}
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+---
+# Frontend Role
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "caresync.fullname" . }}-frontend-role
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "caresync.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rbac
+rules:
+{{- with .Values.rbac.rules.frontend }}
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+---
+# Backend RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "caresync.fullname" . }}-backend-rolebinding
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "caresync.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rbac
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.serviceAccount.backend.name }}
+    namespace: {{ .Values.namespace }}
+roleRef:
+  kind: Role
+  name: {{ include "caresync.fullname" . }}-backend-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# Frontend RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "caresync.fullname" . }}-frontend-rolebinding
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "caresync.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rbac
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.serviceAccount.frontend.name }}
+    namespace: {{ .Values.namespace }}
+roleRef:
+  kind: Role
+  name: {{ include "caresync.fullname" . }}-frontend-role
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
