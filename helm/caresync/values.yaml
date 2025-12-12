@@ -179,11 +179,12 @@ postgresql:
         cpu: "500m"
 
 # External Database (RDS MariaDB)
+# Set these values for your specific RDS instance
 externalDatabase:
-  host: "innovation.c3m2emiiu9qh.eu-west-1.rds.amazonaws.com"
+  host: "YOUR_RDS_ENDPOINT"  # e.g., mydb.region.rds.amazonaws.com
   port: 3306
-  user: admin
-  database: ian-malavi-mhambe-db
+  user: "admin"  # Your RDS username
+  database: "your-database-name"  # Your database name
   existingSecret: "caresync-secrets"
   existingSecretPasswordKey: "DATABASE_URL"
 
@@ -252,7 +253,8 @@ secrets:
 
 # ConfigMap
 configMap:
-  frontendUrl: "http://a34fc6306ef174b7da4448774a97fe5a-c127de64f9bef2fd.elb.eu-west-1.amazonaws.com"
+  # Set this to your actual Load Balancer URL after deployment
+  frontendUrl: "http://YOUR_ELB_URL"
 
 # AWS specific settings
 aws:
