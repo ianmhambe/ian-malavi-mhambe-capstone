@@ -215,26 +215,33 @@ jobs:
           # 1. Create namespace
           kubectl apply -f k8s/namespace.yaml
           
-          # 2. Apply ConfigMap and Secrets
+          # 2. Apply ConfigMap (always update)
           kubectl apply -f k8s/configmap.yaml
-          kubectl apply -f k8s/secrets.yaml
           
-          # 3. Deploy backend
+          # 3. Apply Secrets only if they don't exist (to preserve manually configured secrets)
+          if ! kubectl get secret caresync-secrets -n ${{ env.NAMESPACE }} &>/dev/null; then
+            echo "Creating secrets from template..."
+            kubectl apply -f k8s/secrets.yaml
+          else
+            echo "Secrets already exist, skipping to preserve manual configuration"
+          fi
+          
+          # 4. Deploy backend
           kubectl apply -f k8s/backend-deployment.yaml
           
-          # 4. Deploy frontend
+          # 5. Deploy frontend
           kubectl apply -f k8s/frontend-deployment.yaml
           
-          # 5. Apply Ingress
+          # 6. Apply Ingress
           kubectl apply -f k8s/ingress.yaml
           
-          # 6. Apply HPA (autoscaling)
+          # 7. Apply HPA (autoscaling)
           kubectl apply -f k8s/hpa.yaml
           
-          # 7. Apply Network Policies
+          # 8. Apply Network Policies
           kubectl apply -f k8s/network-policy.yaml
           
-          # 8. Apply Pod Disruption Budgets
+          # 9. Apply Pod Disruption Budgets
           kubectl apply -f k8s/pod-disruption-budget.yaml
           
           echo "✅ All manifests applied successfully"
