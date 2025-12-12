@@ -27,16 +27,17 @@ jobs:
     runs-on: ubuntu-latest
     
     services:
-      postgres:
-        image: postgres:15-alpine
+      mysql:
+        image: mysql:8.0
         env:
-          POSTGRES_USER: caresync
-          POSTGRES_PASSWORD: test_password
-          POSTGRES_DB: caresync_test
+          MYSQL_ROOT_PASSWORD: test_password
+          MYSQL_USER: caresync
+          MYSQL_PASSWORD: test_password
+          MYSQL_DATABASE: caresync_test
         ports:
-          - 5432:5432
+          - 3306:3306
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "mysqladmin ping -h localhost"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -73,12 +74,12 @@ jobs:
       - name: Run backend tests
         working-directory: ./backend
         env:
-          DATABASE_URL: postgresql://caresync:test_password@localhost:5432/caresync_test?schema=public
+          DATABASE_URL: mysql://caresync:test_password@localhost:3306/caresync_test
           JWT_SECRET: test-jwt-secret
           JWT_REFRESH_SECRET: test-jwt-refresh-secret
           NODE_ENV: test
         run: |
-          npx prisma migrate deploy
+          npx prisma db push --skip-generate
           npm test --if-present
 
       - name: Run frontend tests
