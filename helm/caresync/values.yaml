@@ -3,35 +3,34 @@
 
 # Global settings
 global:
-  imageRegistry: ""
+  imageRegistry: "024848484634.dkr.ecr.eu-west-1.amazonaws.com"
   imagePullSecrets: []
   storageClass: ""
 
 # Namespace
-namespace: caresync
+namespace: ian-malavi-mhambe
 
 # Image settings
 image:
-  registry: ""  # Set to your ECR registry
-  pullPolicy: IfNotPresent
+  registry: "024848484634.dkr.ecr.eu-west-1.amazonaws.com"
+  pullPolicy: Always
   pullSecrets: []
 
 # Backend configuration
 backend:
   enabled: true
-  name: backend
+  name: caresync-backend
   replicaCount: 3
   
   image:
-    repository: caresync-backend
-    tag: "latest"
-    pullPolicy: IfNotPresent
+    repository: ian-malavi-mhambe/backend
+    tag: "v17"
+    pullPolicy: Always
   
   service:
-    type: NodePort
+    type: ClusterIP
     port: 5000
     targetPort: 5000
-    nodePort: 30500
   
   resources:
     requests:
@@ -43,9 +42,9 @@ backend:
   
   autoscaling:
     enabled: true
-    minReplicas: 2
+    minReplicas: 3
     maxReplicas: 10
-    targetCPUUtilizationPercentage: 50
+    targetCPUUtilizationPercentage: 70
     targetMemoryUtilizationPercentage: 80
   
   nodeSelector: {}
@@ -60,7 +59,7 @@ backend:
   
   securityContext:
     allowPrivilegeEscalation: false
-    readOnlyRootFilesystem: false
+    readOnlyRootFilesystem: true
     runAsNonRoot: true
     runAsUser: 1000
     capabilities:
@@ -80,7 +79,7 @@ backend:
     httpGet:
       path: /health
       port: 5000
-    initialDelaySeconds: 10
+    initialDelaySeconds: 5
     periodSeconds: 5
     timeoutSeconds: 3
     failureThreshold: 3
@@ -94,19 +93,18 @@ backend:
 # Frontend configuration
 frontend:
   enabled: true
-  name: frontend
+  name: caresync-frontend
   replicaCount: 2
   
   image:
-    repository: caresync-frontend
-    tag: "latest"
-    pullPolicy: IfNotPresent
+    repository: ian-malavi-mhambe/frontend
+    tag: "v17"
+    pullPolicy: Always
   
   service:
-    type: NodePort
-    port: 80
-    targetPort: 80
-    nodePort: 30080
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
   
   resources:
     requests:
@@ -119,8 +117,8 @@ frontend:
   autoscaling:
     enabled: true
     minReplicas: 2
-    maxReplicas: 5
-    targetCPUUtilizationPercentage: 50
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
   
   nodeSelector: {}
   tolerations: []
@@ -134,30 +132,32 @@ frontend:
   
   securityContext:
     allowPrivilegeEscalation: false
-    readOnlyRootFilesystem: true
+    readOnlyRootFilesystem: false
     runAsNonRoot: true
     runAsUser: 101
     capabilities:
       drop:
         - ALL
+      add:
+        - NET_BIND_SERVICE
 
   livenessProbe:
     httpGet:
-      path: /
-      port: 80
+      path: /health
+      port: 8080
     initialDelaySeconds: 10
     periodSeconds: 10
   
   readinessProbe:
     httpGet:
-      path: /
-      port: 80
+      path: /health
+      port: 8080
     initialDelaySeconds: 5
     periodSeconds: 5
 
-# PostgreSQL configuration (using Bitnami chart)
+# PostgreSQL configuration (disabled - using RDS MariaDB)
 postgresql:
-  enabled: true
+  enabled: false
   auth:
     username: caresync
     password: ""  # Set via --set or secrets
@@ -178,38 +178,58 @@ postgresql:
         memory: "512Mi"
         cpu: "500m"
 
-# External PostgreSQL (when postgresql.enabled is false)
+# External Database (RDS MariaDB)
 externalDatabase:
-  host: ""
-  port: 5432
-  user: caresync
-  password: ""
-  database: caresync_db
-  existingSecret: ""
-  existingSecretPasswordKey: ""
+  host: "innovation.c3m2emiiu9qh.eu-west-1.rds.amazonaws.com"
+  port: 3306
+  user: admin
+  database: ian-malavi-mhambe-db
+  existingSecret: "caresync-secrets"
+  existingSecretPasswordKey: "DATABASE_URL"
 
-# Ingress configuration (disabled for localhost)
+# Ingress configuration
 ingress:
-  enabled: false
+  enabled: true
   className: nginx
   annotations:
     kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
   hosts:
-    - host: localhost
-      paths:
+    - paths:
         - path: /api
           pathType: Prefix
-          service: backend
+          service: caresync-backend
+          port: 5000
         - path: /
           pathType: Prefix
-          service: frontend
+          service: caresync-frontend
+          port: 8080
   tls: []
 
-# Service Account
+# Service Account with RBAC
 serviceAccount:
   create: true
-  name: ""
+  backend:
+    name: "caresync-backend"
+  frontend:
+    name: "caresync-frontend"
   annotations: {}
+
+# RBAC Configuration
+rbac:
+  create: true
+  rules:
+    backend:
+      - apiGroups: [""]
+        resources: ["configmaps"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: [""]
+        resources: ["secrets"]
+        verbs: ["get"]
+    frontend:
+      - apiGroups: [""]
+        resources: ["configmaps"]
+        verbs: ["get", "list", "watch"]
 
 # Pod Disruption Budget
 podDisruptionBudget:
@@ -232,12 +252,12 @@ secrets:
 
 # ConfigMap
 configMap:
-  frontendUrl: "http://localhost:30080"
+  frontendUrl: "http://a34fc6306ef174b7da4448774a97fe5a-c127de64f9bef2fd.elb.eu-west-1.amazonaws.com"
 
-# AWS specific settings (optional for localhost)
+# AWS specific settings
 aws:
-  region: us-east-1
-  certificateArn: ""  # Not needed for localhost
+  region: eu-west-1
+  certificateArn: ""
 
 # Monitoring
 monitoring:
@@ -246,3 +266,15 @@ monitoring:
     enabled: false
     interval: 30s
     scrapeTimeout: 10s
+
+# Logging (Fluentd)
+logging:
+  enabled: true
+  fluentd:
+    image: fluent/fluentd-kubernetes-daemonset:v1.16-debian-cloudwatch-1
+    resources:
+      limits:
+        memory: 200Mi
+      requests:
+        cpu: 100m
+        memory: 200Mi

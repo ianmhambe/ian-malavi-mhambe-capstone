@@ -1,0 +1,96 @@
+# RBAC Configuration for CareSync Application
+# Implements least-privilege access for application service accounts
+
+---
+# Backend Service Account (already defined in backend-deployment.yaml, but adding RBAC)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: caresync-backend
+  namespace: ian-malavi-mhambe
+  labels:
+    app.kubernetes.io/name: caresync-backend
+    app.kubernetes.io/component: backend
+---
+# Frontend Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: caresync-frontend
+  namespace: ian-malavi-mhambe
+  labels:
+    app.kubernetes.io/name: caresync-frontend
+    app.kubernetes.io/component: frontend
+---
+# Role for Backend - minimal permissions
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: caresync-backend-role
+  namespace: ian-malavi-mhambe
+  labels:
+    app.kubernetes.io/name: caresync-backend
+    app.kubernetes.io/component: rbac
+rules:
+  # Allow reading ConfigMaps (for app configuration)
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+    resourceNames: ["caresync-config"]
+  # Allow reading Secrets (for database credentials)
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+    resourceNames: ["caresync-secrets"]
+---
+# Role for Frontend - minimal permissions (read-only)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: caresync-frontend-role
+  namespace: ian-malavi-mhambe
+  labels:
+    app.kubernetes.io/name: caresync-frontend
+    app.kubernetes.io/component: rbac
+rules:
+  # Allow reading ConfigMaps only
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+    resourceNames: ["caresync-config"]
+---
+# RoleBinding for Backend
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: caresync-backend-rolebinding
+  namespace: ian-malavi-mhambe
+  labels:
+    app.kubernetes.io/name: caresync-backend
+    app.kubernetes.io/component: rbac
+subjects:
+  - kind: ServiceAccount
+    name: caresync-backend
+    namespace: ian-malavi-mhambe
+roleRef:
+  kind: Role
+  name: caresync-backend-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# RoleBinding for Frontend
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: caresync-frontend-rolebinding
+  namespace: ian-malavi-mhambe
+  labels:
+    app.kubernetes.io/name: caresync-frontend
+    app.kubernetes.io/component: rbac
+subjects:
+  - kind: ServiceAccount
+    name: caresync-frontend
+    namespace: ian-malavi-mhambe
+roleRef:
+  kind: Role
+  name: caresync-frontend-role
+  apiGroup: rbac.authorization.k8s.io

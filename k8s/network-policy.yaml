@@ -1,8 +1,15 @@
+# Network Policies for CareSync Application
+# These policies implement zero-trust networking by restricting traffic flow
+# between frontend, backend, and external services (RDS MariaDB)
+
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: caresync-backend-network-policy
   namespace: ian-malavi-mhambe
+  labels:
+    app.kubernetes.io/name: caresync
+    app.kubernetes.io/component: network-policy
 spec:
   podSelector:
     matchLabels:
@@ -11,10 +18,16 @@ spec:
     - Ingress
     - Egress
   ingress:
+    # Allow traffic from frontend pods
     - from:
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: caresync-frontend
+      ports:
+        - protocol: TCP
+          port: 5000
+    # Allow traffic from ingress-nginx controller
+    - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: ingress-nginx
@@ -22,71 +35,11 @@ spec:
         - protocol: TCP
           port: 5000
   egress:
-    - to:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: caresync-postgres
-      ports:
+    # Allow egress to RDS MariaDB (external - requires allowing all IPs on port 3306)
+    - ports:
         - protocol: TCP
-          port: 5432
-    - to:
-        - namespaceSelector:
-            matchLabels: {}
-          podSelector:
-            matchLabels:
-              k8s-app: kube-dns
-      ports:
-        - protocol: UDP
-          port: 53
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: caresync-postgres-network-policy
-  namespace: ian-malavi-mhambe
-spec:
-  podSelector:
-    matchLabels:
-      app.kubernetes.io/name: caresync-postgres
-  policyTypes:
-    - Ingress
-  ingress:
-    - from:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: caresync-backend
-      ports:
-        - protocol: TCP
-          port: 5432
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: caresync-frontend-network-policy
-  namespace: ian-malavi-mhambe
-spec:
-  podSelector:
-    matchLabels:
-      app.kubernetes.io/name: caresync-frontend
-  policyTypes:
-    - Ingress
-    - Egress
-  ingress:
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: ingress-nginx
-      ports:
-        - protocol: TCP
-          port: 80
-  egress:
-    - to:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: caresync-backend
-      ports:
-        - protocol: TCP
-          port: 5000
+          port: 3306
+    # Allow DNS resolution
     - to:
         - namespaceSelector: {}
           podSelector:
@@ -95,3 +48,64 @@ spec:
       ports:
         - protocol: UDP
           port: 53
+        - protocol: TCP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: caresync-frontend-network-policy
+  namespace: ian-malavi-mhambe
+  labels:
+    app.kubernetes.io/name: caresync
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: caresync-frontend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow traffic from ingress-nginx controller
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    # Allow traffic to backend pods
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: caresync-backend
+      ports:
+        - protocol: TCP
+          port: 5000
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# Default deny all ingress traffic for namespace security
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: ian-malavi-mhambe
+  labels:
+    app.kubernetes.io/name: caresync
+    app.kubernetes.io/component: network-policy
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
