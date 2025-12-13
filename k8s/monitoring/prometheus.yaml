@@ -1,25 +1,17 @@
-# Prometheus and Grafana Stack Configuration
+# Prometheus Stack Configuration for ian-malavi-mhambe namespace
 
-# Create monitoring namespace
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: monitoring
-  labels:
-    name: monitoring
----
 # Prometheus ServiceAccount
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: prometheus
-  namespace: monitoring
+  namespace: ian-malavi-mhambe
 ---
 # Prometheus ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: prometheus
+  name: prometheus-ian-malavi-mhambe
 rules:
   - apiGroups: [""]
     resources:
@@ -40,22 +32,22 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: prometheus
+  name: prometheus-ian-malavi-mhambe
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: prometheus
+  name: prometheus-ian-malavi-mhambe
 subjects:
   - kind: ServiceAccount
     name: prometheus
-    namespace: monitoring
+    namespace: ian-malavi-mhambe
 ---
 # Prometheus ConfigMap
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: prometheus-config
-  namespace: monitoring
+  namespace: ian-malavi-mhambe
 data:
   prometheus.yml: |
     global:
@@ -67,8 +59,7 @@ data:
         - static_configs:
             - targets: []
 
-    rule_files:
-      - /etc/prometheus/rules/*.yml
+    rule_files: []
 
     scrape_configs:
       # Prometheus self-monitoring
@@ -107,10 +98,13 @@ data:
             target_label: __metrics_path__
             replacement: /api/v1/nodes/${1}/proxy/metrics
 
-      # Kubernetes pods
+      # Kubernetes pods with prometheus.io/scrape annotation
       - job_name: 'kubernetes-pods'
         kubernetes_sd_configs:
           - role: pod
+            namespaces:
+              names:
+                - ian-malavi-mhambe
         relabel_configs:
           - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
             action: keep
@@ -133,13 +127,28 @@ data:
             action: replace
             target_label: kubernetes_pod_name
 
+      # Node Exporter - Hardware/OS metrics from all nodes
+      - job_name: 'node-exporter'
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+                - ian-malavi-mhambe
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: node-exporter
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: metrics
+
       # CareSync Backend
       - job_name: 'caresync-backend'
         kubernetes_sd_configs:
           - role: endpoints
             namespaces:
               names:
-                - caresync
+                - ian-malavi-mhambe
         relabel_configs:
           - source_labels: [__meta_kubernetes_service_name]
             action: keep
@@ -147,13 +156,25 @@ data:
           - source_labels: [__meta_kubernetes_endpoint_port_name]
             action: keep
             regex: http
+
+      # CareSync Frontend
+      - job_name: 'caresync-frontend'
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+                - ian-malavi-mhambe
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: caresync-frontend
 ---
 # Prometheus Deployment
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: prometheus
-  namespace: monitoring
+  namespace: ian-malavi-mhambe
   labels:
     app: prometheus
 spec:
@@ -179,11 +200,11 @@ spec:
             - containerPort: 9090
           resources:
             requests:
-              cpu: 250m
-              memory: 512Mi
+              cpu: 50m
+              memory: 256Mi
             limits:
-              cpu: 500m
-              memory: 1Gi
+              cpu: 200m
+              memory: 512Mi
           volumeMounts:
             - name: prometheus-config
               mountPath: /etc/prometheus/
@@ -194,29 +215,14 @@ spec:
           configMap:
             name: prometheus-config
         - name: prometheus-storage
-          persistentVolumeClaim:
-            claimName: prometheus-pvc
----
-# Prometheus PVC
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: prometheus-pvc
-  namespace: monitoring
-spec:
-  accessModes:
-    - ReadWriteOnce
-  storageClassName: gp2
-  resources:
-    requests:
-      storage: 20Gi
+          emptyDir: {}
 ---
 # Prometheus Service
 apiVersion: v1
 kind: Service
 metadata:
   name: prometheus
-  namespace: monitoring
+  namespace: ian-malavi-mhambe
 spec:
   type: ClusterIP
   selector:

@@ -58,9 +58,9 @@ A comprehensive full-stack healthcare web application for managing patient appoi
 ## 🛠 Tech Stack
 
 ### Backend
-- **Runtime:** Node.js 18+
+- **Runtime:** Node.js 20+
 - **Framework:** Express.js 4.x
-- **Database:** PostgreSQL 15
+- **Database:** MySQL 8 (Amazon RDS MariaDB)
 - **ORM:** Prisma 5.x
 - **Authentication:** JWT (jsonwebtoken)
 - **Validation:** Zod
@@ -80,22 +80,23 @@ A comprehensive full-stack healthcare web application for managing patient appoi
 
 ### DevOps & Infrastructure
 - **Containerization:** Docker & Docker Compose
-- **Orchestration:** Kubernetes (AWS EKS)
+- **Orchestration:** Kubernetes (AWS EKS - eu-west-1)
 - **Infrastructure as Code:** Terraform
 - **CI/CD:** GitHub Actions
 - **Container Registry:** Amazon ECR
-- **Load Balancer:** AWS ALB (Application Load Balancer)
-- **Database (Production):** Amazon RDS PostgreSQL
-- **Monitoring:** Prometheus & Grafana
-- **Web Server:** Nginx (production)
+- **Load Balancer:** AWS ELB (via nginx-ingress)
+- **Database (Production):** Amazon RDS MariaDB (MySQL compatible)
+- **Logging:** EFK Stack (Fluentd + CloudWatch)
+- **Secrets:** Kubernetes Secrets (Sealed Secrets ready)
+- **Web Server:** Nginx (production, port 8080)
 
 ## 🏗 Architecture
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
 │                 │     │                 │     │                 │
-│   React App     │────▶│   Express API   │────▶│   PostgreSQL    │
-│   (Frontend)    │     │   (Backend)     │     │   (Database)    │
+│   React App     │────▶│   Express API   │────▶│   MySQL/MariaDB │
+│   (Frontend)    │     │   (Backend)     │     │   (RDS)         │
 │                 │     │                 │     │                 │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
         │                       │
@@ -135,8 +136,8 @@ A comprehensive full-stack healthcare web application for managing patient appoi
                └──────────────┘    │                  ▼                   │
                                     │   ┌─────────────────────────────┐   │
                                     │   │       Amazon RDS            │   │
-                                    │   │     (PostgreSQL)            │   │
-                                    │   │   Multi-AZ, Encrypted       │   │
+                                    │   │     (MariaDB/MySQL)         │   │
+                                    │   │   Port 3306, Encrypted      │   │
                                     │   └─────────────────────────────┘   │
                                     │                                      │
                                     │   ┌─────────────────────────────┐   │
@@ -151,16 +152,16 @@ A comprehensive full-stack healthcare web application for managing patient appoi
 
 ### Prerequisites
 
-- **Node.js** 18.x or higher
-- **npm** 9.x or higher
+- **Node.js** 20.x or higher
+- **npm** 10.x or higher
 - **Docker** and **Docker Compose** (for containerized deployment)
-- **PostgreSQL** 15 (if running locally without Docker)
+- **MySQL** 8.x (if running locally without Docker)
 
 ### Quick Start with Docker
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/caresync.git
+   git clone https://github.com/ianmhambe/caresync.git
    cd caresync
    ```
 
@@ -267,12 +268,15 @@ CareSync is designed for production deployment on AWS EKS. See the full [Deploym
 
 2. **Build and Push Docker Images**
    ```bash
-   # Login to ECR
-   aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <account-id>.dkr.ecr.us-east-1.amazonaws.com
+   # Login to ECR (eu-west-1 region)
+   aws ecr get-login-password --region eu-west-1 | docker login --username AWS --password-stdin 024848484634.dkr.ecr.eu-west-1.amazonaws.com
    
-   # Build and push images
-   docker build -t caresync-backend:v1.0.0 ./backend
-   docker push <ecr-url>/caresync-backend:v1.0.0
+   # Build and push images (CI/CD handles this automatically)
+   docker build -t caresync-backend:v27 ./backend
+   docker push 024848484634.dkr.ecr.eu-west-1.amazonaws.com/ian-malavi-mhambe/backend:v27
+   
+   # List ECR images with version tags
+   aws ecr describe-images --repository-name ian-malavi-mhambe/backend --region eu-west-1 --output json | jq -r '.imageDetails | sort_by(.imagePushedAt) | reverse | .[:5][] | select(.imageTags != null) | "Tags: \(.imageTags | join(", ")) | Pushed: \(.imagePushedAt[:19])"'
    ```
 
 3. **Deploy with Helm**
@@ -322,14 +326,14 @@ To receive deployment notifications via email, configure these secrets in your G
 
 | Component | Service | Description |
 |-----------|---------|-------------|
-| Kubernetes | AWS EKS | Managed Kubernetes cluster |
-| Database | Amazon RDS | Multi-AZ PostgreSQL 15 |
-| Container Registry | Amazon ECR | Docker image storage |
-| Load Balancer | AWS ALB | Application load balancer |
-| DNS | Route 53 | DNS management |
-| SSL | AWS ACM | SSL/TLS certificates |
-| Secrets | AWS Secrets Manager | Secure credential storage |
-| Monitoring | Prometheus/Grafana | Metrics and dashboards |
+| Kubernetes | AWS EKS (eu-west-1) | Managed Kubernetes cluster "innovation" |
+| Database | Amazon RDS MariaDB | MySQL compatible, port 3306 |
+| Container Registry | Amazon ECR | Docker image storage with version tags (v17, v20, v23, v27) |
+| Load Balancer | AWS ELB | Via nginx-ingress controller |
+| Namespace | ian-malavi-mhambe | Dedicated K8s namespace |
+| Secrets | Kubernetes Secrets | Secure credential storage (no secrets in git) |
+| Logging | Fluentd + CloudWatch | EFK Stack for centralized logging |
+| Autoscaling | HPA | CPU/Memory based (3-10 backend, 2-5 frontend) |
 
 #### Scaling
 
@@ -486,14 +490,16 @@ After running the database seed, you can login with these credentials:
 
 | Role | Email | Password |
 |------|-------|----------|
-| Admin | admin@caresync.com | Admin@123 |
-| Doctor | dr.smith@caresync.com | Doctor@123 |
-| Doctor | dr.johnson@caresync.com | Doctor@123 |
-| Doctor | dr.williams@caresync.com | Doctor@123 |
-| Doctor | dr.brown@caresync.com | Doctor@123 |
-| Patient | john.doe@email.com | Patient@123 |
-| Patient | jane.doe@email.com | Patient@123 |
-| Patient | bob.wilson@email.com | Patient@123 |
+| Admin | admin@caresync.com | admin123 |
+| Doctor | dr.smith@caresync.com | doctor123 |
+| Patient | patient1@example.com | patient123 |
+
+### Live Application Access
+
+| Resource | URL |
+|----------|-----|
+| Application | http://a34fc6306ef174b7da4448774a97fe5a-c127de64f9bef2fd.elb.eu-west-1.amazonaws.com |
+| Health Check | http://a34fc6306ef174b7da4448774a97fe5a-c127de64f9bef2fd.elb.eu-west-1.amazonaws.com/api/health |
 
 ## ⚙️ Environment Variables
 
@@ -501,20 +507,20 @@ After running the database seed, you can login with these credentials:
 
 ```env
 # Server
-NODE_ENV=development
+NODE_ENV=production
 PORT=5000
 
-# Database
-DATABASE_URL=postgresql://user:password@localhost:5432/caresync_db
+# Database (MySQL/MariaDB)
+DATABASE_URL=mysql://user:password@hostname:3306/database_name
 
-# JWT (generate with: openssl rand -base64 32)
-JWT_SECRET=<generate-secret-min-32-chars>
-JWT_REFRESH_SECRET=<generate-secret-min-32-chars>
+# JWT (generate with: openssl rand -base64 64)
+JWT_SECRET=<generate-secret-min-64-chars>
+JWT_REFRESH_SECRET=<generate-secret-min-64-chars>
 JWT_EXPIRES_IN=15m
 JWT_REFRESH_EXPIRES_IN=7d
 
 # CORS
-CORS_ORIGIN=http://localhost:5173
+CORS_ORIGIN=*
 ```
 
 ### Frontend (.env)
@@ -579,4 +585,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-Built with ❤️ by the CareSync Team
+Built with ❤️ by Ian Malavi Mhambe
