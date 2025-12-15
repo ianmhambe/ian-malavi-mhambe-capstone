@@ -393,12 +393,13 @@ caresync/
 │   ├── secrets.yaml
 │   ├── backend-deployment.yaml
 │   ├── frontend-deployment.yaml
-│   ├── postgres-statefulset.yaml
 │   ├── ingress.yaml
 │   ├── hpa.yaml
 │   ├── network-policy.yaml
-│   ├── pod-disruption-budget.yaml
-│   └── monitoring/            # Prometheus & Grafana configs
+│   ├── rbac.yaml              # Service account & RBAC
+│   ├── sealed-secrets.yaml    # Sealed Secrets template
+│   ├── fluentd.yaml           # EFK logging
+│   └── pod-disruption-budget.yaml
 │
 ├── terraform/                 # AWS Infrastructure as Code
 │   ├── main.tf               # Provider configuration
