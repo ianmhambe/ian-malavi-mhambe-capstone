@@ -27,16 +27,17 @@ jobs:
     runs-on: ubuntu-latest
     
     services:
-      postgres:
-        image: postgres:15-alpine
+      mysql:
+        image: mysql:8.0
         env:
-          POSTGRES_USER: caresync
-          POSTGRES_PASSWORD: test_password
-          POSTGRES_DB: caresync_test
+          MYSQL_ROOT_PASSWORD: test_password
+          MYSQL_USER: caresync
+          MYSQL_PASSWORD: test_password
+          MYSQL_DATABASE: caresync_test
         ports:
-          - 5432:5432
+          - 3306:3306
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "mysqladmin ping -h localhost"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -73,12 +74,12 @@ jobs:
       - name: Run backend tests
         working-directory: ./backend
         env:
-          DATABASE_URL: postgresql://caresync:test_password@localhost:5432/caresync_test?schema=public
+          DATABASE_URL: mysql://caresync:test_password@localhost:3306/caresync_test
           JWT_SECRET: test-jwt-secret
           JWT_REFRESH_SECRET: test-jwt-refresh-secret
           NODE_ENV: test
         run: |
-          npx prisma migrate deploy
+          npx prisma db push --skip-generate
           npm test --if-present
 
       - name: Run frontend tests
@@ -214,26 +215,33 @@ jobs:
           # 1. Create namespace
           kubectl apply -f k8s/namespace.yaml
           
-          # 2. Apply ConfigMap and Secrets
+          # 2. Apply ConfigMap (always update)
           kubectl apply -f k8s/configmap.yaml
-          kubectl apply -f k8s/secrets.yaml
           
-          # 3. Deploy backend
+          # 3. Apply Secrets only if they don't exist (to preserve manually configured secrets)
+          if ! kubectl get secret caresync-secrets -n ${{ env.NAMESPACE }} &>/dev/null; then
+            echo "Creating secrets from template..."
+            kubectl apply -f k8s/secrets.yaml
+          else
+            echo "Secrets already exist, skipping to preserve manual configuration"
+          fi
+          
+          # 4. Deploy backend
           kubectl apply -f k8s/backend-deployment.yaml
           
-          # 4. Deploy frontend
+          # 5. Deploy frontend
           kubectl apply -f k8s/frontend-deployment.yaml
           
-          # 5. Apply Ingress
+          # 6. Apply Ingress
           kubectl apply -f k8s/ingress.yaml
           
-          # 6. Apply HPA (autoscaling)
+          # 7. Apply HPA (autoscaling)
           kubectl apply -f k8s/hpa.yaml
           
-          # 7. Apply Network Policies
+          # 8. Apply Network Policies
           kubectl apply -f k8s/network-policy.yaml
           
-          # 8. Apply Pod Disruption Budgets
+          # 9. Apply Pod Disruption Budgets
           kubectl apply -f k8s/pod-disruption-budget.yaml
           
           echo "✅ All manifests applied successfully"

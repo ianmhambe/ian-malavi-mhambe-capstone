@@ -17,8 +17,8 @@ This runbook provides troubleshooting steps for common issues encountered in the
 ### Access Commands
 
 ```bash
-# Configure kubectl for EKS
-aws eks update-kubeconfig --region us-east-1 --name shared-eks-cluster
+# Configure kubectl for EKS (eu-west-1 region, innovation cluster)
+aws eks update-kubeconfig --region eu-west-1 --name innovation
 
 # Check pods in namespace
 kubectl get pods -n ian-malavi-mhambe
@@ -34,14 +34,24 @@ kubectl get svc -n ian-malavi-mhambe
 
 # Check ingress
 kubectl get ingress -n ian-malavi-mhambe
+
+# List ECR images with version tags (v17, v20, v23, v27, etc.)
+aws ecr describe-images --repository-name ian-malavi-mhambe/backend --region eu-west-1 --output json | jq -r '.imageDetails | sort_by(.imagePushedAt) | reverse | .[:5][] | select(.imageTags != null) | "Tags: \(.imageTags | join(", ")) | Pushed: \(.imagePushedAt[:19])"'
 ```
 
 ### Health Check URLs
 
 | Service | Endpoint | Expected Response |
 |---------|----------|-------------------|
-| Frontend | `/health` | `{"status":"healthy","service":"caresync-frontend"}` |
-| Backend | `/api/health` | `{"status":"ok","timestamp":"..."}` |
+| Frontend | `http://a34fc6306ef174b7da4448774a97fe5a-c127de64f9bef2fd.elb.eu-west-1.amazonaws.com/` | HTML page |
+| Backend | `http://a34fc6306ef174b7da4448774a97fe5a-c127de64f9bef2fd.elb.eu-west-1.amazonaws.com/api/health` | `{"status":"ok","timestamp":"..."}` |
+
+### ECR Repositories
+
+| Repository | URL |
+|------------|-----|
+| Backend | `024848484634.dkr.ecr.eu-west-1.amazonaws.com/ian-malavi-mhambe/backend` |
+| Frontend | `024848484634.dkr.ecr.eu-west-1.amazonaws.com/ian-malavi-mhambe/frontend` |
 
 ---
 
@@ -86,7 +96,7 @@ kubectl describe pod -n ian-malavi-mhambe <pod-name>
    ```
 4. If database-related, test connectivity:
    ```bash
-   kubectl exec -n ian-malavi-mhambe <pod-name> -- nc -zv <db-host> 5432
+   kubectl exec -n ian-malavi-mhambe <pod-name> -- nc -zv innovation.c3m2emiiu9qh.eu-west-1.rds.amazonaws.com 3306
    ```
 
 ---
@@ -110,15 +120,18 @@ kubectl describe pod -n ian-malavi-mhambe <pod-name> | grep -A 10 Events
 | Image doesn't exist | Verify CI/CD pushed the image successfully |
 
 **Resolution Steps:**
-1. Verify image exists in ECR:
+1. Verify image exists in ECR with version tags:
    ```bash
-   aws ecr describe-images --repository-name ian-malavi-mhambe/backend --region us-east-1
-   aws ecr describe-images --repository-name ian-malavi-mhambe/frontend --region us-east-1
+   # List backend images with version tags
+   aws ecr describe-images --repository-name ian-malavi-mhambe/backend --region eu-west-1 --output json | jq -r '.imageDetails | sort_by(.imagePushedAt) | reverse | .[:5][] | select(.imageTags != null) | "Tags: \(.imageTags | join(", ")) | Pushed: \(.imagePushedAt[:19])"'
+   
+   # List frontend images with version tags
+   aws ecr describe-images --repository-name ian-malavi-mhambe/frontend --region eu-west-1 --output json | jq -r '.imageDetails | sort_by(.imagePushedAt) | reverse | .[:5][] | select(.imageTags != null) | "Tags: \(.imageTags | join(", ")) | Pushed: \(.imagePushedAt[:19])"'
    ```
 2. Check imagePullSecrets in deployment
 3. Manually pull to verify:
    ```bash
-   aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <ecr-url>
+   aws ecr get-login-password --region eu-west-1 | docker login --username AWS --password-stdin 024848484634.dkr.ecr.eu-west-1.amazonaws.com
    ```
 
 ---
@@ -223,8 +236,8 @@ kubectl get endpoints -n ian-malavi-mhambe
 # Check secret exists
 kubectl get secret caresync-secrets -n ian-malavi-mhambe
 
-# Check pod can reach database
-kubectl exec -n ian-malavi-mhambe <backend-pod> -- nc -zv <db-host> 5432
+# Check pod can reach database (MySQL port 3306)
+kubectl exec -n ian-malavi-mhambe <backend-pod> -- nc -zv innovation.c3m2emiiu9qh.eu-west-1.rds.amazonaws.com 3306
 ```
 
 **Resolution Steps:**
@@ -232,11 +245,12 @@ kubectl exec -n ian-malavi-mhambe <backend-pod> -- nc -zv <db-host> 5432
    ```bash
    kubectl get secret caresync-secrets -n ian-malavi-mhambe -o jsonpath='{.data.DATABASE_URL}' | base64 -d
    ```
-2. Test database connectivity from pod:
+2. Test database connectivity directly:
    ```bash
-   kubectl exec -n ian-malavi-mhambe <pod> -- sh -c "nc -zv $DB_HOST 5432"
+   kubectl run mysql-client -it --rm --image=mysql:8.0 -n ian-malavi-mhambe --restart=Never -- \
+     mysql -h innovation.c3m2emiiu9qh.eu-west-1.rds.amazonaws.com -u admin -p -e "SELECT 1;"
    ```
-3. Check NetworkPolicy allows egress to database
+3. Check NetworkPolicy allows egress to port 3306
 
 ---
 
@@ -342,24 +356,6 @@ kubectl delete pod <pod-name> -n ian-malavi-mhambe
 # Force delete stuck pod
 kubectl delete pod <pod-name> -n ian-malavi-mhambe --grace-period=0 --force
 ```
-
----
-
-## Contact Information
-
-### DevOps Team
-
-| Name | Email | Role |
-|------|-------|------|
-| Daniel | dan@tiberbu.com | DevOps Lead |
-| James | njoroge@tiberbu.com | DevOps Engineer |
-| Elvis | elvis@tiberbu.com | DevOps Engineer |
-
-### Escalation Path
-
-1. **Level 1**: Check this runbook, attempt self-resolution
-2. **Level 2**: Contact DevOps team via email
-3. **Level 3**: Emergency contact for production outages
 
 ---
 
