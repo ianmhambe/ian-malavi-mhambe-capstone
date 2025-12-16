@@ -12,24 +12,6 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    # Rule for direct ELB access (no host)
-    - http:
-        paths:
-          - path: /api
-            pathType: Prefix
-            backend:
-              service:
-                name: caresync-backend
-                port:
-                  number: 5000
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: caresync-frontend
-                port:
-                  number: 80
-    # Rule for domain access
     - host: ian-malavi-mhambe.capstone.tiberbu.com
       http:
         paths:
