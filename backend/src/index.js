@@ -50,7 +50,7 @@ app.use((req, res, next) => {
 // Health check endpoints (both /health and /api/health for flexibility)
 const healthResponse = (req, res) => {
   res.status(200).json({ 
-    status: 'healthy mhambe',
+    status: 'healthy mhambe test 1 ',
     timestamp: new Date().toISOString(),
     service: 'CareSync API'
   });
